@@ -1,0 +1,17 @@
+bucket4j:
+  filters:
+    - cache-name: rate-limit-buckets
+      strategy: first
+      url: .*
+      filter-method: servlet
+      http-response-body: "{ \"status\": 429, \"error\": \"Too Many Requests\", \"message\": \"You have exhausted your API Request Quota\" }"
+      rate-limits:
+        - expression: "getRemoteAddress()"
+          execute-condition: "1==1"
+          bandwidths:
+            - capacity: 10
+              time: 1
+              unit: minutes
+              fixed-refill-interval: 0
+              fixed-refill-interval-unit: minutes
+
