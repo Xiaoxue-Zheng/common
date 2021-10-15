@@ -1,6 +1,7 @@
 package uk.ac.herc.common.security.mf;
 
-import com.sun.istack.internal.NotNull;
+
+import javax.validation.constraints.NotNull;
 
 public class MfCodeDTO {
     @NotNull

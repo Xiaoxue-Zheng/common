@@ -1,5 +1,6 @@
 package uk.ac.herc.common.security.mf;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,50 +12,74 @@ import static uk.ac.herc.common.security.mf.MfAuthenticationExceptionReason.*;
 
 @Service
 @Transactional
-public class MfServiceImpl implements MfService{
+public class MfServiceImpl implements MfService {
 
-    private final MfAuthenticationRepository repository;
+    public static final int OTP_LENGTH = 6;
+    //consider config the value
+    public static final int MAX_ATTEMPT = 5;
+    @Autowired
+    private MfAuthenticationRepository mfAuthenticationRepository;
+    @Autowired
+    private MfProperties mfProperties;
 
-    private final MfProperties configuration;
-
-    private final MfOptSender mfOptSender;
-
-    public MfServiceImpl(MfAuthenticationRepository repository, MfOptSender mfOptSender, MfProperties configuration) {
-        this.repository = repository;
-        this.configuration = configuration;
-        this.mfOptSender = mfOptSender;
-    }
-
+    /**
+     * This method will generate the otp for user userNme,
+     * if the user has attempted validate mfProperties.getMaxAttemptTimes() and last otp didn't expire,
+     * it will throw exception
+     * But there still should be an enhancement here: stop users keep generating otp,
+     * even if this can be dane by rate limiting in the Parent Application
+     *
+     * @param userName
+     * @return otp valid in mfProperties.getExpireTime()
+     */
     @Override
-    public void generateAndSendOTP(String userName) {
-        generateOneTimeCode(userName);
-    }
-
-    @Override
-    public MfLoginResultDTO validateOTP(String userName, String pin) {
-        if(skipValidate(pin)){
-            return new MfLoginResultDTO(true, 0);
+    public String generateOTP(String userName) {
+        String otp = generateOTP();
+        Date expiryDateTime = new Date(System.currentTimeMillis() + TimeUnit.valueOf(mfProperties.getTimeUnit()).toMillis(mfProperties.getExpireTime()));
+        MfAuthenticationEntity mfEntity = null;
+        Optional<MfAuthenticationEntity> mfEntityName = mfAuthenticationRepository.findOneByUserName(userName);
+        if (!mfEntityName.isPresent()) {
+            mfEntity = new MfAuthenticationEntity(userName, otp, expiryDateTime, 0);
+            mfAuthenticationRepository.save(mfEntity);
+        } else {
+            mfEntity = mfEntityName.get();
+            if (mfEntity.getFailedAttempts() >= mfProperties.getMaxAttemptTimes() && !mfEntity.isExpired()) {
+                throw new MfAuthenticationException(
+                    PIN_VALIDATION_ATTEMPT_EXCEEDED);
+            }
+            mfEntity.setPin(otp);
+            mfEntity.setExpiryDateTime(expiryDateTime);
+            mfEntity.setFailedAttempts(0);
+            mfAuthenticationRepository.save(mfEntity);
         }
-        Optional<MfAuthenticationEntity> authenticationOptional = repository.findOneByUserName(userName);
-        if(!authenticationOptional.isPresent()){
-            return new MfLoginResultDTO(false, PIN_NOT_EXIST);
+        return otp;
+    }
+
+    @Override
+    public MfValidateResultDTO validateOTP(String userName, String otp) {
+        if (skipValidate(otp)) {
+            return new MfValidateResultDTO(true, 0);
+        }
+        Optional<MfAuthenticationEntity> authenticationOptional = mfAuthenticationRepository.findOneByUserName(userName);
+        if (!authenticationOptional.isPresent()) {
+            return new MfValidateResultDTO(false, PIN_NOT_EXIST);
         }
         MfAuthenticationEntity authentication = authenticationOptional.get();
-        if (authentication.isExpired()){
-            return new MfLoginResultDTO(false, PIN_HAS_EXPIRED);
+        if (authentication.isExpired()) {
+            return new MfValidateResultDTO(false, authentication.getFailedAttempts(), PIN_HAS_EXPIRED);
         }
         Integer failedAttempts = authentication.getFailedAttempts();
-        if (failedAttempts >= 5) {
-            return new MfLoginResultDTO(false, failedAttempts, PIN_VALIDATION_ATTEMPT_EXCEEDED);
+        if (failedAttempts >= mfProperties.getMaxAttemptTimes()) {
+            return new MfValidateResultDTO(false, failedAttempts, PIN_VALIDATION_ATTEMPT_EXCEEDED);
         } else {
-            Boolean isPinValid = authentication.getPin().equals(pin);
+            Boolean isPinValid = authentication.getPin().equals(otp);
             if (!isPinValid) {
                 failedAttempts++;
                 authentication.setFailedAttempts(failedAttempts);
-                repository.save(authentication);
-                return new MfLoginResultDTO(isPinValid, authentication.getFailedAttempts(), PIN_NOT_MATCH);
+                mfAuthenticationRepository.save(authentication);
+                return new MfValidateResultDTO(isPinValid, authentication.getFailedAttempts(), PIN_NOT_MATCH);
             }
-            return new MfLoginResultDTO(isPinValid, authentication.getFailedAttempts());
+            return new MfValidateResultDTO(isPinValid, authentication.getFailedAttempts());
         }
     }
 
@@ -62,36 +87,13 @@ public class MfServiceImpl implements MfService{
         return false;
     }
 
-    private void generateOneTimeCode(String userName) {
-        String otp = generateOtp();
-        Date expiryDateTime = new Date(new Date().getTime() + TimeUnit.valueOf(configuration.getTimeUnit()).toMillis(configuration.getCodeTimeout()));;
-        MfAuthenticationEntity authentication = null;
-        Optional<MfAuthenticationEntity> authenticationOptional = repository.findOneByUserName(userName);
-        if (!authenticationOptional.isPresent()) {
-            authentication = new MfAuthenticationEntity(userName, otp, expiryDateTime, 0);
-            repository.save(authentication);
-        } else {
-            authentication = authenticationOptional.get();
-            if (authentication.getFailedAttempts() >= configuration.getMaxTryTime() && !authentication.isExpired()) {
-                throw new MfAuthenticationException(
-                    PIN_VALIDATION_ATTEMPT_EXCEEDED);
-            }
-            authentication.setPin(otp);
-            authentication.setExpiryDateTime(expiryDateTime);
-            authentication.setFailedAttempts(0);
-            repository.save(authentication);
-        }
-        mfOptSender.sendUserOpt(userName, otp);
-    }
-
-    private String generateOtp() {
-        String generatedPin = "";
-        int pinLength = 6;
-        for (int i = 0; i < pinLength; i++) {
-            generatedPin += randomInteger(0, 9);
+    private String generateOTP() {
+        StringBuilder code = new StringBuilder();
+        for (int i = 0; i < OTP_LENGTH; i++) {
+            code.append(randomInteger(0, 9));
         }
 
-        return generatedPin;
+        return code.toString();
     }
 
     private int randomInteger(int min, int max) {

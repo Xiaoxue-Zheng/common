@@ -1,1 +1,1 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.baeldung.autoconfiguration.MySQLAutoconfiguration
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=uk.ac.herc.common.security.mf.MfAutoConfiguration

@@ -1,7 +1,7 @@
 package uk.ac.herc.common.security.mf;
 
 public interface MfService {
-    void generateAndSendOTP(String userName);
+    String generateOTP(String userName);
 
-    MfLoginResultDTO validateOTP(String userName, String pin);
+    MfValidateResultDTO validateOTP(String userName, String pin);
 }

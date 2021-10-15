@@ -1,26 +1,31 @@
 package uk.ac.herc.common.security.mf;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.TimeUnit;
 
-@ConfigurationProperties(prefix = "application", ignoreUnknownFields = false)
+@Configuration
+@ConfigurationProperties(prefix = "mf")
 public class MfProperties {
+    private Boolean enable = false;
 
-    private Long codeTimeout = 30L;
+    private Long expireTime = 30L;
 
     private String timeUnit = TimeUnit.MINUTES.name();
 
-    private Integer maxTryTime = 5;
+    private Integer maxAttemptTimes = 5;
 
-    private Boolean authBeforeSendOTP = false;
+    private Boolean authBeforeGenerateOtp = false;
 
-    public Long getCodeTimeout() {
-        return codeTimeout;
+    private Boolean sendOtp = true;
+
+    public Long getExpireTime() {
+        return expireTime;
     }
 
-    public void setCodeTimeout(Long codeTimeout) {
-        this.codeTimeout = codeTimeout;
+    public void setExpireTime(Long expireTime) {
+        this.expireTime = expireTime;
     }
 
     public String getTimeUnit() {
@@ -31,19 +36,35 @@ public class MfProperties {
         this.timeUnit = timeUnit;
     }
 
-    public Integer getMaxTryTime() {
-        return maxTryTime;
+    public Integer getMaxAttemptTimes() {
+        return maxAttemptTimes;
     }
 
-    public void setMaxTryTime(Integer maxTryTime) {
-        this.maxTryTime = maxTryTime;
+    public void setMaxAttemptTimes(Integer maxAttemptTimes) {
+        this.maxAttemptTimes = maxAttemptTimes;
     }
 
-    public Boolean getAuthBeforeSendOTP() {
-        return authBeforeSendOTP;
+    public Boolean getAuthBeforeGenerateOtp() {
+        return authBeforeGenerateOtp;
     }
 
-    public void setAuthBeforeSendOTP(Boolean authBeforeSendOTP) {
-        this.authBeforeSendOTP = authBeforeSendOTP;
+    public void setAuthBeforeGenerateOtp(Boolean authBeforeGenerateOtp) {
+        this.authBeforeGenerateOtp = authBeforeGenerateOtp;
+    }
+
+    public Boolean getSendOtp() {
+        return sendOtp;
+    }
+
+    public void setSendOtp(Boolean sendOtp) {
+        this.sendOtp = sendOtp;
+    }
+
+    public Boolean getEnable() {
+        return enable;
+    }
+
+    public void setEnable(Boolean enable) {
+        this.enable = enable;
     }
 }

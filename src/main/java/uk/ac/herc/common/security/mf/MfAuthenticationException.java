@@ -5,9 +5,16 @@ public class MfAuthenticationException extends RuntimeException {
 
     private MfAuthenticationExceptionReason reason;
 
+    private Integer failedAttempts;
+
     public MfAuthenticationException(MfAuthenticationExceptionReason reason) {
         super(reason.name());
         this.reason = reason;
+    }
+
+    public MfAuthenticationException(MfAuthenticationExceptionReason reason, int failedAttempts) {
+        this(reason);
+        this.failedAttempts = failedAttempts;
     }
 
     public String getMessage() {
